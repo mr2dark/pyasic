@@ -296,6 +296,14 @@ class AntminerModern(BMMiner):
                         )
 
                     else:
+                        if "S21+" in self.model:
+                            hashboards[board["index"]].inlet_temp = (
+                                board["temp_chip"][0] + board["temp_chip"][1]
+                            ) / 2
+                            hashboards[board["index"]].outlet_temp = (
+                                board["temp_chip"][2] + board["temp_chip"][3]
+                            ) / 2
+
                         board_temp_data = list(
                             filter(lambda x: not x == 0, board["temp_pcb"])
                         )
