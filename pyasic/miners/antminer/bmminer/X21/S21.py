@@ -15,8 +15,10 @@
 # ------------------------------------------------------------------------------
 
 import dataclasses
-from typing import Optional
+from typing import List, Optional, Union
 
+from pyasic.device.algorithm import AlgoHashRateType
+from pyasic.errors import APIError
 from pyasic.miners.backends import AntminerModern
 from pyasic.miners.data import DataFunction, DataLocations, DataOptions
 from pyasic.miners.device.models import S21, S21Hydro, S21Plus, S21PlusHydro, S21Pro
@@ -76,6 +78,41 @@ class BMMinerS21Plus(AntminerModern, S21Plus):
             return None
 
         return rpc_stats["STATS"][0].get("ambient_temp") if rpc_stats else None
+
+    async def _get_sticker_hashrate(self) -> AlgoHashRateType | None:
+        try:
+            rpc_stats = await self.rpc.stats(new_api=True)
+        except APIError:
+            return None
+
+        if rpc_stats is None:
+            return None
+
+        sticker_rate = rpc_stats["STATS"][0].get("rate_sale")
+        if sticker_rate is None:
+            return None
+        try:
+            rate_unit = str(rpc_stats["STATS"][0]["rate_unit"])
+        except KeyError:
+            rate_unit = "GH"
+
+        if rate_unit.endswith("/s"):
+            rate_unit = rate_unit[:-2]
+
+        return self.algo.hashrate(
+            rate=float(sticker_rate), unit=self.algo.unit.from_str(rate_unit)
+        ).into(self.algo.unit.default)
+
+    async def _get_data(
+        self,
+        allow_warning: bool,
+        include: List[Union[str, DataOptions]] = None,
+        exclude: List[Union[str, DataOptions]] = None,
+    ) -> dict:
+        data = await super()._get_data(allow_warning, include, exclude)
+        if data is not None:
+            data["sticker_hashrate"] = await self._get_sticker_hashrate()
+        return data
 
 
 class BMMinerS21PlusHydro(AntminerModern, S21PlusHydro):
